@@ -24,7 +24,7 @@ spec:
       - name: url
         value: http://hello-api.dev.svc.cluster.local
       - name: version
-        value: ${{ imageFrom("kind-registry:5000/hello-api").Tag }}
+        value: ${{ imageFrom("ghcr.io/ponamaryovmv/hello-api").Tag }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
@@ -51,7 +51,7 @@ spec:
       - name: url
         value: http://hello-api.stage.svc.cluster.local
       - name: version
-        value: ${{ imageFrom("kind-registry:5000/hello-api").Tag }}
+        value: ${{ imageFrom("ghcr.io/ponamaryovmv/hello-api").Tag }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
@@ -78,4 +78,4 @@ spec:
       - name: url
         value: http://hello-api.prod.svc.cluster.local
       - name: version
-        value: ${{ imageFrom("kind-registry:5000/hello-api").Tag }}
+        value: ${{ imageFrom("ghcr.io/ponamaryovmv/hello-api").Tag }}

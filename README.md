@@ -5,7 +5,7 @@
 
 ```
 apps/<app>/
-├── src/              # app.py + Dockerfile (собирает scripts/build-app.sh)
+├── src/              # app.py + Dockerfile (собирает GitHub Actions → ghcr.io)
 ├── base/             # Rollout (canary + анализ /health), Service stable/canary, AnalysisTemplate
 ├── envs/
 │   ├── dev/          # ← сюда коммитит Kargo (newTag в kustomization.yaml)
@@ -32,10 +32,23 @@ Argo CD подхватывает всё автоматически (ApplicationS
 Общие эндпоинты: `/version` (проверяет Kargo), `/health` (проверяет canary-анализ, `500` у сборки `--broken`), `/ready` (пробы).
 color-web дополнительно ходит в `hello-api` своего неймспейса и показывает его версию.
 
+## Выпуск версии
+
+Образы собирает GitHub Actions ([`.github/workflows/build.yaml`](.github/workflows/build.yaml)) в `ghcr.io/ponamaryovmv/<app>`:
+
+```bash
+git tag hello-api/v1.1.0 && git push origin hello-api/v1.1.0
+```
+
+Сломанная сборка (проверка отката canary) или свой цвет — **Actions → build → Run workflow** (`broken`, `color`).
+
+> Пакеты в ghcr после первой сборки могут быть приватными. Сделайте их публичными, иначе кластер и Kargo не скачают образ:
+> GitHub → профиль → **Packages** → `hello-api` / `color-web` → **Package settings → Change visibility → Public**.
+
 ## Пайплайн
 
-1. `scripts/build-app.sh <app> X.Y.Z` пушит образ в локальный registry.
-2. Warehouse (`kind-registry:5000/<app>`, SemVer) создаёт Freight.
+1. Тег `<app>/vX.Y.Z` → GitHub Actions пушит `ghcr.io/ponamaryovmv/<app>:X.Y.Z`.
+2. Warehouse (SemVer, опрос раз в 30с) создаёт Freight.
 3. Стейдж выполняет `PromotionTask/promote`: `git-clone` → `kustomize-set-image` в `envs/<stage>` → `git-commit` → `git-push` в `main` → `argocd-update`.
 4. Argo Rollouts катит canary: 50% → 15с → анализ `/health` canary-подов (6 проверок) → 100%. Провал — откат на stable.
 5. Kargo-верификация (`AnalysisTemplate/smoke`): стейдж отдаёт на `/version` ровно версию из Freight.

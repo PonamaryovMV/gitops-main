@@ -24,7 +24,7 @@ spec:
       - name: url
         value: http://color-web.dev.svc.cluster.local
       - name: version
-        value: ${{ imageFrom("kind-registry:5000/color-web").Tag }}
+        value: ${{ imageFrom("ghcr.io/ponamaryovmv/color-web").Tag }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
@@ -51,7 +51,7 @@ spec:
       - name: url
         value: http://color-web.stage.svc.cluster.local
       - name: version
-        value: ${{ imageFrom("kind-registry:5000/color-web").Tag }}
+        value: ${{ imageFrom("ghcr.io/ponamaryovmv/color-web").Tag }}
 ---
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
@@ -78,4 +78,4 @@ spec:
       - name: url
         value: http://color-web.prod.svc.cluster.local
       - name: version
-        value: ${{ imageFrom("kind-registry:5000/color-web").Tag }}
+        value: ${{ imageFrom("ghcr.io/ponamaryovmv/color-web").Tag }}

@@ -11,7 +11,7 @@ spec:
     - name: gitRepo
       value: https://github.com/PonamaryovMV/gitops-main.git
     - name: imageRepo
-      value: kind-registry:5000/color-web
+      value: ghcr.io/ponamaryovmv/color-web
   steps:
     - uses: git-clone
       config:
