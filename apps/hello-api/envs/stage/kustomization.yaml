@@ -1,22 +1,22 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../../base
+- ../../base
 images:
-  - name: ghcr.io/ponamaryovmv/hello-api
-    newTag: "1.0.0"
+- name: ghcr.io/ponamaryovmv/hello-api
+  newTag: 1.0.0
 patches:
-  - target:
-      kind: Service
-      name: hello-api
-    patch: |-
-      - op: add
-        path: /spec/ports/0/nodePort
-        value: 30102
-  - target:
-      kind: Rollout
-      name: hello-api
-    patch: |-
-      - op: replace
-        path: /spec/replicas
-        value: 2
+- target:
+    kind: Service
+    name: hello-api
+  patch: |-
+    - op: add
+      path: /spec/ports/0/nodePort
+      value: 30102
+- target:
+    kind: Rollout
+    name: hello-api
+  patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 2
