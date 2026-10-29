@@ -1,0 +1,22 @@
+# Kargo Project создаёт неймспейс hello-api; остальные ресурсы пайплайна живут в нём.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: hello-api
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+---
+# dev и stage получают новые версии автоматически, prod — только вручную
+apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: hello-api
+  namespace: hello-api
+spec:
+  promotionPolicies:
+    - stageSelector:
+        name: dev
+      autoPromotionEnabled: true
+    - stageSelector:
+        name: stage
+      autoPromotionEnabled: true

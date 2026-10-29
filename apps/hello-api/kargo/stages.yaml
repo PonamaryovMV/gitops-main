@@ -1,0 +1,81 @@
+# dev ← Warehouse, stage ← dev, prod ← stage.
+# Каждый стейдж выполняет PromotionTask "promote" и затем smoke-проверку.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: dev
+  namespace: hello-api
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: hello-api
+      sources:
+        direct: true
+  promotionTemplate:
+    spec:
+      steps:
+        - task:
+            name: promote
+  verification:
+    analysisTemplates:
+      - name: smoke
+    args:
+      - name: url
+        value: http://hello-api.dev.svc.cluster.local
+      - name: version
+        value: ${{ imageFrom("kind-registry:5000/hello-api").Tag }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: stage
+  namespace: hello-api
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: hello-api
+      sources:
+        stages:
+          - dev
+  promotionTemplate:
+    spec:
+      steps:
+        - task:
+            name: promote
+  verification:
+    analysisTemplates:
+      - name: smoke
+    args:
+      - name: url
+        value: http://hello-api.stage.svc.cluster.local
+      - name: version
+        value: ${{ imageFrom("kind-registry:5000/hello-api").Tag }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: prod
+  namespace: hello-api
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: hello-api
+      sources:
+        stages:
+          - stage
+  promotionTemplate:
+    spec:
+      steps:
+        - task:
+            name: promote
+  verification:
+    analysisTemplates:
+      - name: smoke
+    args:
+      - name: url
+        value: http://hello-api.prod.svc.cluster.local
+      - name: version
+        value: ${{ imageFrom("kind-registry:5000/hello-api").Tag }}

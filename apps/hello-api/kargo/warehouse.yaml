@@ -1,0 +1,16 @@
+# Следит за тегами образа в локальном registry.
+# Новый semver-тег (scripts/build-app.sh hello-api X.Y.Z) → новый Freight.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: hello-api
+  namespace: hello-api
+spec:
+  interval: 30s
+  subscriptions:
+    - image:
+        repoURL: kind-registry:5000/hello-api
+        imageSelectionStrategy: SemVer
+        discoveryLimit: 10
+        # registry с self-signed сертификатом (см. scripts/up.sh)
+        insecureSkipTLSVerify: true

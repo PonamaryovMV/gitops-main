@@ -1,0 +1,81 @@
+# dev ← Warehouse, stage ← dev, prod ← stage.
+# Каждый стейдж выполняет PromotionTask "promote" и затем smoke-проверку.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: dev
+  namespace: color-web
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: color-web
+      sources:
+        direct: true
+  promotionTemplate:
+    spec:
+      steps:
+        - task:
+            name: promote
+  verification:
+    analysisTemplates:
+      - name: smoke
+    args:
+      - name: url
+        value: http://color-web.dev.svc.cluster.local
+      - name: version
+        value: ${{ imageFrom("kind-registry:5000/color-web").Tag }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: stage
+  namespace: color-web
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: color-web
+      sources:
+        stages:
+          - dev
+  promotionTemplate:
+    spec:
+      steps:
+        - task:
+            name: promote
+  verification:
+    analysisTemplates:
+      - name: smoke
+    args:
+      - name: url
+        value: http://color-web.stage.svc.cluster.local
+      - name: version
+        value: ${{ imageFrom("kind-registry:5000/color-web").Tag }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: prod
+  namespace: color-web
+spec:
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: color-web
+      sources:
+        stages:
+          - stage
+  promotionTemplate:
+    spec:
+      steps:
+        - task:
+            name: promote
+  verification:
+    analysisTemplates:
+      - name: smoke
+    args:
+      - name: url
+        value: http://color-web.prod.svc.cluster.local
+      - name: version
+        value: ${{ imageFrom("kind-registry:5000/color-web").Tag }}
