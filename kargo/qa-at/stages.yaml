@@ -1,5 +1,5 @@
-# dev → test → uat → prod. Промоушен везде вручную (auto-promotion не включён).
-# В prod попадает только Freight, прошедший верификацию (DAST) на uat.
+# dev → test → uat → dast → prod. dev/test/uat/prod — Promote вручную, dast — автоматически после uat.
+# В prod попадает только Freight, прошедший стадию dast.
 apiVersion: kargo.akuity.io/v1alpha1
 kind: Stage
 metadata:
@@ -41,7 +41,26 @@ spec:
     spec:
       steps:
         - task: { name: promote-gitops }
-  # DAST: Kargo запускает Jenkins-джобу qa-at/DAST и ждёт её статус
+---
+# DAST — отдельный шаг после uat. Ничего не деплоит: Freight, развёрнутый на uat,
+# автоматически (ProjectConfig) попадает сюда, и Kargo запускает Jenkins qa-at/DAST и ждёт статус.
+# Повтор DAST без передеплоя — кнопка Reverify на этой стадии.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: dast
+  namespace: qa-at
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: qa-at }
+      sources: { stages: [uat] }
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: compose-output
+          as: dast
+          config:
+            freight: ${{ ctx.targetFreight.name }}
   verification:
     analysisTemplates:
       - name: dast
@@ -61,7 +80,7 @@ metadata:
 spec:
   requestedFreight:
     - origin: { kind: Warehouse, name: qa-at }
-      sources: { stages: [uat] }
+      sources: { stages: [dast] }
   promotionTemplate:
     spec:
       steps:

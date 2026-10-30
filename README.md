@@ -21,13 +21,14 @@ demo-app/                            код демо-образов (собир�
 ```
 Jenkins BuildRelease ──коммит release.yaml──▶ ветка qa-at ──▶ Kargo Warehouse → Freight
                                                                   │ Promote (вручную)
-              dev ──▶ test ──▶ uat [DAST: Kargo → Jenkins qa-at/DAST] ──▶ prod (gitops-prod)
+              dev ──▶ test ──▶ uat ──auto──▶ dast [Kargo → Jenkins qa-at/DAST] ──▶ prod (gitops-prod)
 ```
 
 - Промоушен копирует `qa/at/<сервис>/release.yaml` из Freight в `qa/at/<сервис>/<окружение>/release.yaml` ветки `main`
   (для prod — в gitops-prod) и синкает Application'ы Argo CD. Values окружений не трогаются.
-- `uat` после выкатки запускает верификацию `dast`: Job вызывает Jenkins-джобу `qa-at/DAST` (параметр — список репозиториев)
-  и ждёт её статус. В prod можно продвинуть только Freight, прошедший DAST.
+- `dast` — отдельная стадия без деплоя. Freight, развёрнутый на `uat`, попадает в неё автоматически (ProjectConfig),
+  Kargo запускает Jenkins-джобу `qa-at/DAST` (параметр — список репозиториев) и ждёт её статус.
+  Повтор DAST — Reverify на стадии `dast`. В prod можно продвинуть только Freight, прошедший `dast`.
 - Исключение сервиса — Jenkins `qa-at/ExcludeService` (см. [jenkins](https://github.com/PonamaryovMV/jenkins)).
 
 ## release.yaml

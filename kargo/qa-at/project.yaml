@@ -6,3 +6,15 @@ metadata:
   name: qa-at
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
+---
+# Автопромоушен только для стадии dast: Freight, развёрнутый на uat, сразу уходит на DAST.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: qa-at
+  namespace: qa-at
+spec:
+  promotionPolicies:
+    - stageSelector:
+        name: dast
+      autoPromotionEnabled: true
