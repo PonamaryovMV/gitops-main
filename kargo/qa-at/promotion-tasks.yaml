@@ -37,21 +37,15 @@ spec:
       as: push
       config:
         path: ./target
+    # Без desiredRevision: все окружения живут в одной ветке main, и следующий промоушен (test, uat)
+    # двигает HEAD. С жёсткой ревизией dev навсегда «не совпадал» бы и висел в Verifying.
+    # Kargo запускает sync на текущий HEAD (там уже наш коммит) и ждёт Synced + Healthy.
     - uses: argocd-update
       config:
         apps:
           - name: qa-at-mgmt-${{ ctx.stage }}
-            sources:
-              - repoURL: ${{ vars.repo }}
-                desiredRevision: ${{ task.outputs.push.commit }}
           - name: qa-at-core-${{ ctx.stage }}
-            sources:
-              - repoURL: ${{ vars.repo }}
-                desiredRevision: ${{ task.outputs.push.commit }}
           - name: qa-at-api-${{ ctx.stage }}
-            sources:
-              - repoURL: ${{ vars.repo }}
-                desiredRevision: ${{ task.outputs.push.commit }}
 ---
 # prod: release.yaml из Freight → gitops-prod main:qa/at/<сервис>/prod/release.yaml.
 # Сервисы из qa/at/release-exclude.yaml (срочное исключение) не берутся из Freight,
@@ -155,21 +149,15 @@ spec:
       as: push
       config:
         path: ./target
+    # Без desiredRevision: все окружения живут в одной ветке main, и следующий промоушен (test, uat)
+    # двигает HEAD. С жёсткой ревизией dev навсегда «не совпадал» бы и висел в Verifying.
+    # Kargo запускает sync на текущий HEAD (там уже наш коммит) и ждёт Synced + Healthy.
     - uses: argocd-update
       config:
         apps:
           - name: qa-at-mgmt-prod
-            sources:
-              - repoURL: ${{ vars.prodRepo }}
-                desiredRevision: ${{ task.outputs.push.commit }}
           - name: qa-at-core-prod
-            sources:
-              - repoURL: ${{ vars.prodRepo }}
-                desiredRevision: ${{ task.outputs.push.commit }}
           - name: qa-at-api-prod
-            sources:
-              - repoURL: ${{ vars.prodRepo }}
-                desiredRevision: ${{ task.outputs.push.commit }}
     - uses: set-metadata
       config:
         updates:
