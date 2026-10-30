@@ -9,6 +9,7 @@ qa/at/<сервис>/<окружение>/          сервисы: mgmt, core, 
 ├── qa-at-<сервис>-<окружение>.yaml  values окружения (global.*, реплики, компоненты) — правят люди
 └── release.yaml                     версия: main.container.version + list_image_build — пишет Kargo
 kargo/qa-at/                         Kargo: Project, Warehouse, PromotionTask'и, Stages, DAST
+                                     freight-alias.yaml — имена Freight = номер релиза (release-2-102)
 demo-app/                            код демо-образов (собираются один раз workflow seed-images)
 ```
 

@@ -1,0 +1,108 @@
+# Человекочитаемые имена Freight: вместо случайных kindred-bunny — номер релиза из коммита Jenkins.
+#   BuildRelease                → release-2-102
+#   ExcludeService (planned)    → release-2-102-excl-mgmt   (версия последнего релиза + исключённый сервис)
+# Раз в минуту CronJob находит Freight без отметки stand/alias и переименовывает его.
+# Jenkins в Kargo по-прежнему не ходит — всё внутри кластера.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: freight-alias
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: freight-alias
+rules:
+  - apiGroups: ["kargo.akuity.io"]
+    resources: ["freights"]
+    verbs: ["get", "list", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: freight-alias
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: freight-alias
+subjects:
+  - kind: ServiceAccount
+    name: freight-alias
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: freight-alias
+data:
+  alias.py: |
+    import json, os, re, ssl, urllib.request
+
+    NS = open("/var/run/secrets/kubernetes.io/serviceaccount/namespace").read().strip()
+    TOKEN = open("/var/run/secrets/kubernetes.io/serviceaccount/token").read().strip()
+    CTX = ssl.create_default_context(cafile="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+    API = f"https://kubernetes.default.svc/apis/kargo.akuity.io/v1alpha1/namespaces/{NS}/freights"
+    MARK = "stand/alias"
+
+    def call(url, method="GET", body=None, ctype="application/json"):
+        req = urllib.request.Request(url, method=method, data=json.dumps(body).encode() if body else None,
+                                     headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": ctype})
+        with urllib.request.urlopen(req, context=CTX) as r:
+            return json.load(r)
+
+    def wanted(freight, last_release):
+        msg = ((freight.get("commits") or [{}])[0].get("message") or "")
+        m = re.search(r"release-\d+-\d+", msg)
+        excl = re.search(r":\s*(\w+) исключён из релиза", msg)
+        if excl:
+            return f"{last_release or 'release'}-excl-{excl.group(1)}"
+        return m.group(0) if m else None
+
+    items = sorted(call(API)["items"], key=lambda f: f["metadata"]["creationTimestamp"])
+    taken = {f.get("alias") for f in items}
+    last_release = None
+    for f in items:
+        name = f["metadata"]["name"]
+        ann = f["metadata"].get("annotations") or {}
+        base = wanted(f, last_release)
+        if base and "-excl-" not in base:
+            last_release = base
+        if ann.get(MARK) or not base:
+            continue
+        alias, n = base.lower(), 2
+        while alias in taken:
+            alias, n = f"{base.lower()}-{n}", n + 1
+        call(f"{API}/{name}", "PATCH", {
+            "alias": alias,
+            "metadata": {"labels": {"kargo.akuity.io/alias": alias}, "annotations": {MARK: alias}},
+        }, "application/merge-patch+json")
+        taken.discard(f.get("alias")); taken.add(alias)
+        print(f"{name[:12]}  {f.get('alias')} → {alias}")
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: freight-alias
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      ttlSecondsAfterFinished: 300
+      template:
+        spec:
+          serviceAccountName: freight-alias
+          restartPolicy: Never
+          containers:
+            - name: alias
+              image: python:3.14-slim
+              command: ["python", "/app/alias.py"]
+              volumeMounts:
+                - { name: app, mountPath: /app }
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+          volumes:
+            - name: app
+              configMap: { name: freight-alias }
