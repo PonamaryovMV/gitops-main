@@ -1,0 +1,14 @@
+global:
+  automated_system: qa
+  functional_system: at
+  appname: core
+  environment: uat
+
+main:
+  replicas: 2
+  components:
+    - name: api
+      port: 8080
+      ingress: true      # http://qa-at-core-uat
+    - name: worker
+      port: 8080

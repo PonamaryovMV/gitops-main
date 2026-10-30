@@ -1,0 +1,14 @@
+global:
+  automated_system: qa
+  functional_system: at
+  appname: api
+  environment: test
+
+main:
+  replicas: 1
+  components:
+    - name: api
+      port: 8080
+      ingress: true      # http://qa-at-api-test
+    - name: worker
+      port: 8080

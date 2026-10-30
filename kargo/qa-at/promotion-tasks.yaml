@@ -1,0 +1,179 @@
+# dev / test / uat: release.yaml каждого сервиса из Freight → gitops-main main:qa/at/<сервис>/<окр>/release.yaml
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: promote-gitops
+  namespace: qa-at
+spec:
+  vars:
+    - name: repo
+      value: https://github.com/PonamaryovMV/gitops-main.git
+  steps:
+    - uses: git-clone
+      config:
+        repoURL: ${{ vars.repo }}
+        checkout:
+          - commit: ${{ commitFrom(vars.repo).ID }}
+            path: ./freight
+          - branch: main
+            path: ./target
+    - uses: copy
+      config:
+        inPath: ./freight/qa/at/mgmt/release.yaml
+        outPath: ./target/qa/at/mgmt/${{ ctx.stage }}/release.yaml
+    - uses: copy
+      config:
+        inPath: ./freight/qa/at/core/release.yaml
+        outPath: ./target/qa/at/core/${{ ctx.stage }}/release.yaml
+    - uses: copy
+      config:
+        inPath: ./freight/qa/at/api/release.yaml
+        outPath: ./target/qa/at/api/${{ ctx.stage }}/release.yaml
+    - uses: git-commit
+      config:
+        path: ./target
+        message: "kargo(qa-at): ${{ ctx.stage }} ← ${{ ctx.targetFreight.name }} (qa-at@${{ commitFrom(vars.repo).ID }})"
+    - uses: git-push
+      as: push
+      config:
+        path: ./target
+    - uses: argocd-update
+      config:
+        apps:
+          - name: qa-at-mgmt-${{ ctx.stage }}
+            sources:
+              - repoURL: ${{ vars.repo }}
+                desiredRevision: ${{ task.outputs.push.commit }}
+          - name: qa-at-core-${{ ctx.stage }}
+            sources:
+              - repoURL: ${{ vars.repo }}
+                desiredRevision: ${{ task.outputs.push.commit }}
+          - name: qa-at-api-${{ ctx.stage }}
+            sources:
+              - repoURL: ${{ vars.repo }}
+                desiredRevision: ${{ task.outputs.push.commit }}
+---
+# prod: release.yaml из Freight → gitops-prod main:qa/at/<сервис>/prod/release.yaml.
+# Сервисы из qa/at/release-exclude.yaml (срочное исключение) не берутся из Freight,
+# а возвращаются к своему release.yaml на коммите restoreFrom.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: promote-prod
+  namespace: qa-at
+spec:
+  vars:
+    - name: repo
+      value: https://github.com/PonamaryovMV/gitops-main.git
+    - name: prodRepo
+      value: https://github.com/PonamaryovMV/gitops-prod.git
+  steps:
+    - uses: git-clone
+      config:
+        repoURL: ${{ vars.repo }}
+        checkout:
+          - commit: ${{ commitFrom(vars.repo).ID }}
+            path: ./freight
+    - uses: git-clone
+      config:
+        repoURL: ${{ vars.prodRepo }}
+        checkout:
+          - branch: main
+            path: ./target
+    - uses: yaml-parse
+      as: excl
+      config:
+        path: ./target/qa/at/release-exclude.yaml
+        outputs:
+          - name: mgmt
+            fromExpression: "excluded != nil && 'mgmt' in excluded ? excluded.mgmt.restoreFrom : ''"
+          - name: core
+            fromExpression: "excluded != nil && 'core' in excluded ? excluded.core.restoreFrom : ''"
+          - name: api
+            fromExpression: "excluded != nil && 'api' in excluded ? excluded.api.restoreFrom : ''"
+          - name: list
+            fromExpression: "excluded != nil ? keys(excluded) : []"
+    # --- mgmt
+    - uses: copy
+      if: ${{ task.outputs.excl.mgmt == '' }}
+      config:
+        inPath: ./freight/qa/at/mgmt/release.yaml
+        outPath: ./target/qa/at/mgmt/prod/release.yaml
+    - uses: git-clone
+      if: ${{ task.outputs.excl.mgmt != '' }}
+      config:
+        repoURL: ${{ vars.prodRepo }}
+        checkout:
+          - commit: ${{ task.outputs.excl.mgmt }}
+            path: ./restore-mgmt
+    - uses: copy
+      if: ${{ task.outputs.excl.mgmt != '' }}
+      config:
+        inPath: ./restore-mgmt/qa/at/mgmt/prod/release.yaml
+        outPath: ./target/qa/at/mgmt/prod/release.yaml
+    # --- core
+    - uses: copy
+      if: ${{ task.outputs.excl.core == '' }}
+      config:
+        inPath: ./freight/qa/at/core/release.yaml
+        outPath: ./target/qa/at/core/prod/release.yaml
+    - uses: git-clone
+      if: ${{ task.outputs.excl.core != '' }}
+      config:
+        repoURL: ${{ vars.prodRepo }}
+        checkout:
+          - commit: ${{ task.outputs.excl.core }}
+            path: ./restore-core
+    - uses: copy
+      if: ${{ task.outputs.excl.core != '' }}
+      config:
+        inPath: ./restore-core/qa/at/core/prod/release.yaml
+        outPath: ./target/qa/at/core/prod/release.yaml
+    # --- api
+    - uses: copy
+      if: ${{ task.outputs.excl.api == '' }}
+      config:
+        inPath: ./freight/qa/at/api/release.yaml
+        outPath: ./target/qa/at/api/prod/release.yaml
+    - uses: git-clone
+      if: ${{ task.outputs.excl.api != '' }}
+      config:
+        repoURL: ${{ vars.prodRepo }}
+        checkout:
+          - commit: ${{ task.outputs.excl.api }}
+            path: ./restore-api
+    - uses: copy
+      if: ${{ task.outputs.excl.api != '' }}
+      config:
+        inPath: ./restore-api/qa/at/api/prod/release.yaml
+        outPath: ./target/qa/at/api/prod/release.yaml
+    - uses: git-commit
+      config:
+        path: ./target
+        message: "kargo(qa-at): prod ← ${{ ctx.targetFreight.name }} (qa-at@${{ commitFrom(vars.repo).ID }}), исключены: ${{ join(task.outputs.excl.list, ', ') }}"
+    - uses: git-push
+      as: push
+      config:
+        path: ./target
+    - uses: argocd-update
+      config:
+        apps:
+          - name: qa-at-mgmt-prod
+            sources:
+              - repoURL: ${{ vars.prodRepo }}
+                desiredRevision: ${{ task.outputs.push.commit }}
+          - name: qa-at-core-prod
+            sources:
+              - repoURL: ${{ vars.prodRepo }}
+                desiredRevision: ${{ task.outputs.push.commit }}
+          - name: qa-at-api-prod
+            sources:
+              - repoURL: ${{ vars.prodRepo }}
+                desiredRevision: ${{ task.outputs.push.commit }}
+    - uses: set-metadata
+      config:
+        updates:
+          - kind: Freight
+            name: ${{ ctx.targetFreight.name }}
+            values:
+              excludedInProd: ${{ task.outputs.excl.list }}

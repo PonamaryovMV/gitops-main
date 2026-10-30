@@ -1,0 +1,20 @@
+# Фиксирует версию сервиса. Пишет BuildRelease (ветка ФП qa-at), в окружения копирует Kargo.
+main:
+  container:
+    registry: ghcr.io/ponamaryovmv
+    version: release-1-101
+
+list_image_build:
+  - ghcr.io/ponamaryovmv/qa-at-api-api:release-1-101
+  - ghcr.io/ponamaryovmv/qa-at-api-worker:release-1-101
+
+release:
+  task: TASK-1
+  build: 101
+  source:
+    repo: https://github.com/PonamaryovMV/qa-at-api
+    commit: initial
+  digests: {}
+  checks:
+    sca: PASSED
+    sast: PASSED

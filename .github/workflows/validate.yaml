@@ -1,0 +1,31 @@
+# Проверка Helm: каждая папка окружения рендерится так же, как её отрендерит Argo CD
+# (Chart.yaml с зависимостью main из OCI + values окружения + release.yaml).
+name: validate
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+      - name: helm template по всем окружениям
+        run: |
+          set -euo pipefail
+          for chart in $(find . -path ./.git -prune -o -name Chart.yaml -print | sort); do
+            dir=$(dirname "$chart"); rel=${dir#./}
+            IFS=/ read -r as fp svc env <<< "$rel"
+            values="$dir/$as-$fp-$svc-$env.yaml"
+            echo "::group::$rel"
+            helm dependency build "$dir" >/dev/null
+            helm template "$as-$fp-$svc" "$dir" -f "$values" -f "$dir/release.yaml" > /tmp/out.yaml
+            version=$(grep -m1 'version:' "$dir/release.yaml" | awk '{print $2}')
+            grep -q "image: .*/$as-$fp-$svc-api:$version" /tmp/out.yaml
+            grep -q "host: $as-$fp-$svc-$env" /tmp/out.yaml
+            echo "OK $rel → $version"
+            echo "::endgroup::"
+            echo "- \`$rel\` → $version" >> "$GITHUB_STEP_SUMMARY"
+          done

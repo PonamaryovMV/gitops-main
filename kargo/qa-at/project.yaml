@@ -1,0 +1,8 @@
+# Kargo-проект ФП qa/at. Неймспейс qa-at заранее создаёт scripts/windows/up.ps1
+# (с меткой kargo.akuity.io/project=true и секретом jenkins-kargo для DAST) — Kargo его принимает.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: qa-at
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"

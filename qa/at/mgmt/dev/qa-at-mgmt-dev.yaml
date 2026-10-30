@@ -1,0 +1,14 @@
+global:
+  automated_system: qa
+  functional_system: at
+  appname: mgmt
+  environment: dev
+
+main:
+  replicas: 1
+  components:
+    - name: api
+      port: 8080
+      ingress: true      # http://qa-at-mgmt-dev
+    - name: worker
+      port: 8080

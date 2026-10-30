@@ -1,0 +1,9 @@
+apiVersion: v2
+name: qa-at-core-chart
+version: 0.0.1
+description: qa-at-core
+appVersion: "0.0.1"
+dependencies:
+  - name: main
+    version: 0.0.2
+    repository: oci://ghcr.io/ponamaryovmv/charts

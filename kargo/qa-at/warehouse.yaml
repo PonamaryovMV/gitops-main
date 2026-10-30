@@ -1,0 +1,19 @@
+# Релиз ФП = коммит Jenkins (BuildRelease / ExcludeService) в ветку ФП qa-at.
+# В ветке лежит qa/at/<сервис>/release.yaml — по одному файлу на сервис; Freight = снимок всех трёх.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: qa-at
+  namespace: qa-at
+spec:
+  interval: 30s
+  subscriptions:
+    - git:
+        repoURL: https://github.com/PonamaryovMV/gitops-main.git
+        branch: qa-at
+        commitSelectionStrategy: NewestFromBranch
+        includePaths:
+          - qa/at
+        # только коммиты пайплайнов Jenkins (git user.name = jenkins)
+        expressionFilter: author contains 'jenkins'
+        discoveryLimit: 20

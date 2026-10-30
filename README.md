@@ -1,57 +1,58 @@
-# gitops-main — приложения стенда
+# gitops-main — ФП qa/at (dev, test, uat)
 
-Два тестовых приложения на Python (только stdlib, без зависимостей) с canary через Argo Rollouts
-и промоушеном dev → stage → prod через Kargo.
+Конфигурация сервисов ФП `qa/at` в формате `<АС>/<ФП>/<сервис>/<окружение>/` и Kargo-проект, который её продвигает.
+PROD живёт в отдельном репозитории [gitops-prod](https://github.com/PonamaryovMV/gitops-prod).
 
 ```
-apps/<app>/
-├── src/              # app.py + Dockerfile (собирает GitHub Actions → ghcr.io)
-├── base/             # Rollout (canary + анализ /health), Service stable/canary, AnalysisTemplate
-├── envs/
-│   ├── dev/          # ← сюда коммитит Kargo (newTag в kustomization.yaml)
-│   ├── stage/
-│   └── prod/
-└── kargo/            # Project, ProjectConfig, Warehouse, PromotionTask, Stages, smoke-проверка
+qa/at/<сервис>/<окружение>/          сервисы: mgmt, core, api   окружения: dev, test, uat
+├── Chart.yaml                       umbrella-чарт: зависимость main 0.0.2 (oci://ghcr.io/ponamaryovmv/charts)
+├── qa-at-<сервис>-<окружение>.yaml  values окружения (global.*, реплики, компоненты) — правят люди
+└── release.yaml                     версия: main.container.version + list_image_build — пишет Kargo
+kargo/qa-at/                         Kargo: Project, Warehouse, PromotionTask'и, Stages, DAST
+demo-app/                            код демо-образов (собираются один раз workflow seed-images)
 ```
 
-Argo CD подхватывает всё автоматически (ApplicationSet'ы в [infra](https://github.com/PonamaryovMV/infra)):
+Ветка **`qa-at`** — ветка ФП. В ней только `qa/at/<сервис>/release.yaml`, пишет туда только Jenkins
+(BuildRelease, ExcludeService). Kargo Warehouse смотрит на неё: каждый коммит Jenkins = Freight = снимок всех сервисов ФП.
 
-- `apps/<app>/envs/<env>` → Application `<app>-<env>` в неймспейсе `<env>`;
-- `apps/<app>/kargo` → Application `kargo-<app>` (Kargo-проект `<app>`).
+## Флоу
 
-Новое приложение = скопировать папку, переименовать, поменять NodePort'ы в `envs/*` и порты в `scripts/config/kind-config.yaml`.
-
-## Приложения
-
-| | hello-api | color-web |
-|---|---|---|
-| Что | JSON API | страница с сеткой цветных квадратов: видно, какой под ответил |
-| dev / stage / prod | localhost:8101 / 8102 / 8103 | localhost:8111 / 8112 / 8113 |
-| Реплики dev / stage / prod | 1 / 2 / 3 | 1 / 2 / 3 |
-
-Общие эндпоинты: `/version` (проверяет Kargo), `/health` (проверяет canary-анализ, `500` у сборки `--broken`), `/ready` (пробы).
-color-web дополнительно ходит в `hello-api` своего неймспейса и показывает его версию.
-
-## Выпуск версии
-
-Образы собирает GitHub Actions ([`.github/workflows/build.yaml`](.github/workflows/build.yaml)) в `ghcr.io/ponamaryovmv/<app>`:
-
-```bash
-git tag hello-api/v1.1.0 && git push origin hello-api/v1.1.0
+```
+Jenkins BuildRelease ──коммит release.yaml──▶ ветка qa-at ──▶ Kargo Warehouse → Freight
+                                                                  │ Promote (вручную)
+              dev ──▶ test ──▶ uat [DAST: Kargo → Jenkins qa-at/DAST] ──▶ prod (gitops-prod)
 ```
 
-Сломанная сборка (проверка отката canary) или свой цвет — **Actions → build → Run workflow** (`broken`, `color`).
+- Промоушен копирует `qa/at/<сервис>/release.yaml` из Freight в `qa/at/<сервис>/<окружение>/release.yaml` ветки `main`
+  (для prod — в gitops-prod) и синкает Application'ы Argo CD. Values окружений не трогаются.
+- `uat` после выкатки запускает верификацию `dast`: Job вызывает Jenkins-джобу `qa-at/DAST` (параметр — список репозиториев)
+  и ждёт её статус. В prod можно продвинуть только Freight, прошедший DAST.
+- Исключение сервиса — Jenkins `qa-at/ExcludeService` (см. [jenkins](https://github.com/PonamaryovMV/jenkins)).
 
-> Пакеты в ghcr после первой сборки могут быть приватными. Сделайте их публичными, иначе кластер и Kargo не скачают образ:
-> GitHub → профиль → **Packages** → `hello-api` / `color-web` → **Package settings → Change visibility → Public**.
+## release.yaml
 
-## Пайплайн
+```yaml
+main:
+  container:
+    registry: ghcr.io/ponamaryovmv
+    version: release-2-102            # тег всех образов сервиса
+list_image_build:                     # вход SCA
+  - ghcr.io/ponamaryovmv/qa-at-mgmt-api:release-2-102
+  - ghcr.io/ponamaryovmv/qa-at-mgmt-worker:release-2-102
+release:                              # служебное: откуда релиз и чем проверен
+  task: TASK-2
+  build: 12
+  source: { repo: https://github.com/PonamaryovMV/qa-at-mgmt, commit: ... }   # вход SAST
+  digests: { qa-at-mgmt-api: "sha256:...", qa-at-mgmt-worker: "sha256:..." }
+  checks: { sca: PASSED, sast: PASSED }
+```
 
-1. Тег `<app>/vX.Y.Z` → GitHub Actions пушит `ghcr.io/ponamaryovmv/<app>:X.Y.Z`.
-2. Warehouse (SemVer, опрос раз в 30с) создаёт Freight.
-3. Стейдж выполняет `PromotionTask/promote`: `git-clone` → `kustomize-set-image` в `envs/<stage>` → `git-commit` → `git-push` в `main` → `argocd-update`.
-4. Argo Rollouts катит canary: 50% → 15с → анализ `/health` canary-подов (6 проверок) → 100%. Провал — откат на stable.
-5. Kargo-верификация (`AnalysisTemplate/smoke`): стейдж отдаёт на `/version` ровно версию из Freight.
-6. dev и stage продвигаются автоматически (`ProjectConfig`), prod — вручную.
+## Образы
 
-Коммиты Kargo приходят в `main` от имени `Kargo <no-reply@kargo.io>` — перед своими правками делайте `git pull`.
+`ghcr.io/ponamaryovmv/qa-at-<сервис>-<компонент>:release-<N>-<сборка>` — сервисы `mgmt`, `core`, `api`,
+компоненты `api`, `worker`, теги `release-1-101`, `release-2-102`, `release-3-103`.
+Собраны один раз workflow **seed-images**; цвет страницы сервиса зависит от номера релиза.
+
+## Проверка
+
+Workflow **validate** рендерит каждую папку окружения через Helm так же, как Argo CD.

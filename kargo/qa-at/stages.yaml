@@ -1,0 +1,68 @@
+# dev → test → uat → prod. Промоушен везде вручную (auto-promotion не включён).
+# В prod попадает только Freight, прошедший верификацию (DAST) на uat.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: dev
+  namespace: qa-at
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: qa-at }
+      sources: { direct: true }
+  promotionTemplate:
+    spec:
+      steps:
+        - task: { name: promote-gitops }
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: test
+  namespace: qa-at
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: qa-at }
+      sources: { stages: [dev] }
+  promotionTemplate:
+    spec:
+      steps:
+        - task: { name: promote-gitops }
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: uat
+  namespace: qa-at
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: qa-at }
+      sources: { stages: [test] }
+  promotionTemplate:
+    spec:
+      steps:
+        - task: { name: promote-gitops }
+  # DAST: Kargo запускает Jenkins-джобу qa-at/DAST и ждёт её статус
+  verification:
+    analysisTemplates:
+      - name: dast
+    args:
+      - name: repos
+        value: https://github.com/PonamaryovMV/qa-at-mgmt,https://github.com/PonamaryovMV/qa-at-core,https://github.com/PonamaryovMV/qa-at-api
+      - name: environment
+        value: uat
+      - name: release
+        value: ${{ commitFrom("https://github.com/PonamaryovMV/gitops-main.git").ID }}
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: prod
+  namespace: qa-at
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: qa-at }
+      sources: { stages: [uat] }
+  promotionTemplate:
+    spec:
+      steps:
+        - task: { name: promote-prod }
