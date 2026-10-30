@@ -40,13 +40,16 @@ spec:
                         base = os.environ["JENKINS_URL"].rstrip("/")
                         auth = "Basic " + base64.b64encode(f"{os.environ['JENKINS_USER']}:{os.environ['JENKINS_PASSWORD']}".encode()).decode()
                         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+                        def inside(url):
+                            # Jenkins отдаёт ссылки со своим внешним адресом http://jenkins — из кластера он не резолвится
+                            return base + urllib.parse.urlparse(url).path
                         def call(url, method="GET", headers=None):
                             req = urllib.request.Request(url, method=method, headers={"Authorization": auth, **(headers or {})})
                             return opener.open(req, timeout=30)
                         crumb = json.load(call(f"{base}/crumbIssuer/api/json"))
                         q = urllib.parse.urlencode({"REPOS": os.environ["P_REPOS"], "ENVIRONMENT": os.environ["P_ENV"], "RELEASE": os.environ["P_RELEASE"]})
                         r = call(f"{base}/job/{os.environ['JENKINS_JOB']}/buildWithParameters?{q}", "POST", {crumb["crumbRequestField"]: crumb["crumb"]})
-                        queue = r.headers["Location"].rstrip("/")
+                        queue = inside(r.headers["Location"]).rstrip("/")
                         print("Jenkins: DAST поставлен в очередь", queue)
                         build = None
                         while build is None:
@@ -55,6 +58,7 @@ spec:
                             if item.get("cancelled"):
                                 sys.exit("DAST: сборка отменена в очереди")
                             build = (item.get("executable") or {}).get("url")
+                            build = build and inside(build)
                         print("Jenkins: DAST запущен", build)
                         while True:
                             time.sleep(5)
