@@ -9,14 +9,12 @@ list_image_build:
   - ghcr.io/ponamaryovmv/qa-at-core-worker:release-1-101
 
 release:
-  task: TASK-2
-  build: 1
+  task: TASK-1
+  build: 101
   source:
     repo: https://github.com/PonamaryovMV/qa-at-core
-    commit: release-1-101
-  digests:
-    qa-at-core-api: "sha256:9352e09e98ed3f1041eb5b8bff30082d96bef6bcbf52c7be08be61ffb1a4b791"
-    qa-at-core-worker: "sha256:ba9985097fee5bcf37084b68e15253bdba49226990e4e3272d50b217b82ca597"
+    commit: initial
+  digests: {}
   checks:
     sca: PASSED
     sast: PASSED
