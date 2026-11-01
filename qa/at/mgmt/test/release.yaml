@@ -9,14 +9,12 @@ list_image_build:
   - ghcr.io/ponamaryovmv/qa-at-mgmt-worker:release-1-101
 
 release:
-  task: TASK-2
-  build: 1
+  task: TASK-1
+  build: 101
   source:
     repo: https://github.com/PonamaryovMV/qa-at-mgmt
-    commit: release-1-101
-  digests:
-    qa-at-mgmt-api: "sha256:bff942d0d014bf995c3d310ad6b0d64ea52cb5d8e08b523d26045c4a76065600"
-    qa-at-mgmt-worker: "sha256:05f7158434e94728fa693b514dc867ccb1a12e9ac98454677367b783c639b995"
+    commit: initial
+  digests: {}
   checks:
     sca: PASSED
     sast: PASSED
