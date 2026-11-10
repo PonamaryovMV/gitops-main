@@ -1,0 +1,120 @@
+# Доступ Kargo к Deployment'ам ФП: шаг http в задаче wave спрашивает Kubernetes API,
+# выкатились ли сервисы волны (метка version) и готовы ли поды.
+# Kargo читает токен через secret('deploy-reader') из неймспейса проекта qa-bt.
+# Права — только get/list Deployment'ов в qa-bt-<окружение>.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deploy-reader
+  namespace: qa-bt
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: deploy-reader
+  namespace: qa-bt
+  labels:
+    kargo.akuity.io/cred-type: generic
+  annotations:
+    kubernetes.io/service-account.name: deploy-reader
+type: kubernetes.io/service-account-token
+---
+# неймспейс qa-bt-dev создаёт Argo CD (ApplicationSet workloads); до этого синк повторяется
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kargo-deploy-reader
+  namespace: qa-bt-dev
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kargo-deploy-reader
+  namespace: qa-bt-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kargo-deploy-reader
+subjects:
+  - kind: ServiceAccount
+    name: deploy-reader
+    namespace: qa-bt
+---
+# неймспейс qa-bt-test создаёт Argo CD (ApplicationSet workloads); до этого синк повторяется
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kargo-deploy-reader
+  namespace: qa-bt-test
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kargo-deploy-reader
+  namespace: qa-bt-test
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kargo-deploy-reader
+subjects:
+  - kind: ServiceAccount
+    name: deploy-reader
+    namespace: qa-bt
+---
+# неймспейс qa-bt-uat создаёт Argo CD (ApplicationSet workloads); до этого синк повторяется
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kargo-deploy-reader
+  namespace: qa-bt-uat
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kargo-deploy-reader
+  namespace: qa-bt-uat
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kargo-deploy-reader
+subjects:
+  - kind: ServiceAccount
+    name: deploy-reader
+    namespace: qa-bt
+---
+# неймспейс qa-bt-prod создаёт Argo CD (ApplicationSet workloads); до этого синк повторяется
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kargo-deploy-reader
+  namespace: qa-bt-prod
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kargo-deploy-reader
+  namespace: qa-bt-prod
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kargo-deploy-reader
+subjects:
+  - kind: ServiceAccount
+    name: deploy-reader
+    namespace: qa-bt

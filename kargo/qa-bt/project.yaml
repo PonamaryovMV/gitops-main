@@ -1,0 +1,11 @@
+# Kargo-проект ФП qa/bt — та же схема, что qa-at, но сервисы выкатываются ВОЛНАМИ по зависимостям.
+# Зависимости пишет разработчик в values окружения сервиса (deploy.dependsOn),
+# Jenkins (qa-bt/BuildRelease) превращает их в план qa/bt/release-plan.yaml в ветке qa-bt,
+# Kargo при промоушене выкатывает волны по очереди (promotion-tasks.yaml).
+# Неймспейс qa-bt Kargo создаёт сам. Автопромоушена нет: dev/test/uat/prod — Promote вручную.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: qa-bt
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"

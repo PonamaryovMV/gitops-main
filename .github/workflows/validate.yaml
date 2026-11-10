@@ -23,7 +23,8 @@ jobs:
             helm dependency build "$dir" >/dev/null
             helm template "$as-$fp-$svc" "$dir" -f "$values" -f "$dir/release.yaml" > /tmp/out.yaml
             version=$(grep -m1 'version:' "$dir/release.yaml" | awk '{print $2}')
-            grep -q "image: .*/$as-$fp-$svc-api:$version" /tmp/out.yaml
+            # образ может быть другой ФП (main.container.imageFunctionalSystem), поэтому проверяем только <сервис>-api:<версия>
+            grep -q "image: .*-$svc-api:$version" /tmp/out.yaml
             grep -q "host: $as-$fp-$svc-$env" /tmp/out.yaml
             echo "OK $rel → $version"
             echo "::endgroup::"

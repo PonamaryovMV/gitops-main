@@ -1,0 +1,110 @@
+# dev → test → uat → prod, Promote вручную. Каждая стадия выкатывает релиз волнами:
+#   prepare → wave1 → wave2 → wave3 → finish
+# Пустые волны (если цепочка зависимостей короче) ничего не делают.
+# Больше трёх волн = цепочка длиннее трёх сервисов: добавьте ещё строку wave.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: dev
+  namespace: qa-bt
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: qa-bt }
+      sources: { direct: true }
+  promotionTemplate:
+    spec:
+      steps:
+        - task: { name: prepare }
+          as: prepare
+        - task: { name: wave }
+          as: wave1
+          vars: [{ name: wave, value: "0" }]
+        - task: { name: wave }
+          as: wave2
+          vars: [{ name: wave, value: "1" }]
+        - task: { name: wave }
+          as: wave3
+          vars: [{ name: wave, value: "2" }]
+        - task: { name: finish }
+          as: finish
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: test
+  namespace: qa-bt
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: qa-bt }
+      sources: { stages: [dev] }
+  promotionTemplate:
+    spec:
+      steps:
+        - task: { name: prepare }
+          as: prepare
+        - task: { name: wave }
+          as: wave1
+          vars: [{ name: wave, value: "0" }]
+        - task: { name: wave }
+          as: wave2
+          vars: [{ name: wave, value: "1" }]
+        - task: { name: wave }
+          as: wave3
+          vars: [{ name: wave, value: "2" }]
+        - task: { name: finish }
+          as: finish
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: uat
+  namespace: qa-bt
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: qa-bt }
+      sources: { stages: [test] }
+  promotionTemplate:
+    spec:
+      steps:
+        - task: { name: prepare }
+          as: prepare
+        - task: { name: wave }
+          as: wave1
+          vars: [{ name: wave, value: "0" }]
+        - task: { name: wave }
+          as: wave2
+          vars: [{ name: wave, value: "1" }]
+        - task: { name: wave }
+          as: wave3
+          vars: [{ name: wave, value: "2" }]
+        - task: { name: finish }
+          as: finish
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: prod
+  namespace: qa-bt
+spec:
+  requestedFreight:
+    - origin: { kind: Warehouse, name: qa-bt }
+      sources: { stages: [uat] }
+  promotionTemplate:
+    spec:
+      steps:
+        - task: { name: prepare }
+          as: prepare
+          vars:
+            - name: targetRepo
+              value: https://github.com/PonamaryovMV/gitops-prod.git
+        - task: { name: wave }
+          as: wave1
+          vars: [{ name: wave, value: "0" }]
+        - task: { name: wave }
+          as: wave2
+          vars: [{ name: wave, value: "1" }]
+        - task: { name: wave }
+          as: wave3
+          vars: [{ name: wave, value: "2" }]
+        - task: { name: finish }
+          as: finish

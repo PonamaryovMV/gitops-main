@@ -1,0 +1,132 @@
+# Промоушен ФП qa/bt волнами.
+#
+#   prepare  — клонирует Freight (ветка qa-bt) в ./freight и целевую ветку main в ./target
+#   wave N   — сервисы N-й волны из qa/bt/release-plan.yaml (план считает Jenkins):
+#              копия их release.yaml → ОТДЕЛЬНЫЙ коммит и push → ждём, пока их Deployment'ы
+#              в qa-bt-<стадия> выкатились с этой версией и готовы. Только потом следующая волна.
+#   finish   — argocd-update всех приложений ФП: здоровье стадии в Kargo + ссылки на Argo CD
+#
+# Автосинк Argo CD включён. Он не может выкатить core раньше api: версии core в git ещё нет,
+# её коммит появляется только после того, как api готов.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: prepare
+  namespace: qa-bt
+spec:
+  vars:
+    - name: repo
+      value: https://github.com/PonamaryovMV/gitops-main.git
+    - name: targetRepo        # prod переопределяет на gitops-prod
+      value: https://github.com/PonamaryovMV/gitops-main.git
+  steps:
+    - uses: git-clone
+      config:
+        repoURL: ${{ vars.repo }}
+        checkout:
+          - commit: ${{ commitFrom(vars.repo).ID }}
+            path: ./freight
+    - uses: git-clone
+      config:
+        repoURL: ${{ vars.targetRepo }}
+        checkout:
+          - branch: main
+            path: ./target
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: wave
+  namespace: qa-bt
+spec:
+  vars:
+    - name: wave              # номер волны с нуля: "0" = волна 1 в плане
+  steps:
+    # план окружения: [{api: release-2-102}, {core: release-2-102, mgmt: release-2-102}]
+    - uses: yaml-parse
+      as: plan
+      config:
+        path: ./freight/qa/bt/release-plan.yaml
+        outputs:
+          - name: waves
+            fromExpression: "$env['${{ ctx.stage }}'] ?? []"
+    # сервисы этой волны с версиями: {core: release-2-102, mgmt: release-2-102}; {} — волны нет
+    - uses: compose-output
+      as: cur
+      config:
+        services: "${% len(task.outputs.plan.waves) > int(vars.wave) ? task.outputs.plan.waves[int(vars.wave)] : {} %}"
+        names: "${% len(task.outputs.plan.waves) > int(vars.wave) ? join(sort(keys(task.outputs.plan.waves[int(vars.wave)])), ', ') : '' %}"
+
+    # --- копируем release.yaml сервисов волны (по шагу на каждый сервис ФП)
+    - uses: copy
+      if: ${{ 'api' in task.outputs.cur.services }}
+      config:
+        inPath: ./freight/qa/bt/api/release.yaml
+        outPath: ./target/qa/bt/api/${{ ctx.stage }}/release.yaml
+    - uses: copy
+      if: ${{ 'core' in task.outputs.cur.services }}
+      config:
+        inPath: ./freight/qa/bt/core/release.yaml
+        outPath: ./target/qa/bt/core/${{ ctx.stage }}/release.yaml
+    - uses: copy
+      if: ${{ 'mgmt' in task.outputs.cur.services }}
+      config:
+        inPath: ./freight/qa/bt/mgmt/release.yaml
+        outPath: ./target/qa/bt/mgmt/${{ ctx.stage }}/release.yaml
+
+    # --- отдельный коммит волны. Нет изменений (повторный Promote) — коммит пропускается.
+    - uses: git-commit
+      if: ${{ task.outputs.cur.names != '' }}
+      config:
+        path: ./target
+        message: "kargo(qa-bt): ${{ ctx.stage }} ← ${{ ctx.targetFreight.alias }}, волна ${{ int(vars.wave) + 1 }}: ${{ task.outputs.cur.names }}"
+    - uses: git-push
+      if: ${{ task.outputs.cur.names != '' }}
+      config:
+        path: ./target
+
+    # --- ждём, пока Deployment'ы сервисов волны выкатились С ЭТОЙ ВЕРСИЕЙ и все поды готовы.
+    # Смотрим прямо в Kubernetes (метки чарта main: part-of = qa-bt-<сервис>, version = версия),
+    # поэтому не важно, когда именно автосинк Argo CD подхватит коммит.
+    # Токен — ServiceAccount deploy-reader (deploy-reader.yaml), только чтение Deployment'ов.
+    - uses: http
+      if: ${{ task.outputs.cur.names != '' }}
+      retry:
+        timeout: 10m
+      config:
+        method: GET
+        url: https://kubernetes.default.svc/apis/apps/v1/namespaces/qa-bt-${{ ctx.stage }}/deployments
+        insecureSkipTLSVerify: true
+        headers:
+          - name: Authorization
+            value: Bearer ${{ secret('deploy-reader').token }}
+        timeout: 10s
+        pollInterval: 10s
+        failureExpression: response.status == 401 || response.status == 403
+        successExpression: |-
+          let want = ${{ task.outputs.cur.services }};
+          let mine = filter(response.body?.items ?? [], trimPrefix(.metadata.labels?.['app.kubernetes.io/part-of'] ?? '', 'qa-bt-') in want);
+          let found = map(mine, trimPrefix(.metadata.labels['app.kubernetes.io/part-of'], 'qa-bt-'));
+          response.status == 200 && all(keys(want), # in found) && all(mine,
+            .metadata.labels['app.kubernetes.io/version'] == want[trimPrefix(.metadata.labels['app.kubernetes.io/part-of'], 'qa-bt-')]
+            && (.status?.observedGeneration ?? 0) >= .metadata.generation
+            && (.status?.updatedReplicas ?? 0) == .spec.replicas
+            && (.status?.readyReplicas ?? 0) == .spec.replicas
+            && (.status?.replicas ?? 0) == .spec.replicas)
+---
+# После всех волн: синк всех приложений ФП (изменений уже нет — пустая операция).
+# Нужен, чтобы Kargo следил за здоровьем стадии и показывал ссылки на Application'ы.
+# Без desiredRevision: все окружения живут в одной ветке main (как в qa-at).
+apiVersion: kargo.akuity.io/v1alpha1
+kind: PromotionTask
+metadata:
+  name: finish
+  namespace: qa-bt
+spec:
+  steps:
+    - uses: argocd-update
+      config:
+        apps:
+          - name: qa-bt-api-${{ ctx.stage }}
+          - name: qa-bt-core-${{ ctx.stage }}
+          - name: qa-bt-mgmt-${{ ctx.stage }}

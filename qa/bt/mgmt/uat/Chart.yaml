@@ -1,0 +1,9 @@
+apiVersion: v2
+name: qa-bt-mgmt-chart
+version: 0.0.1
+description: qa-bt-mgmt
+appVersion: "0.0.1"
+dependencies:
+  - name: main
+    version: 0.0.3
+    repository: oci://ghcr.io/ponamaryovmv/charts

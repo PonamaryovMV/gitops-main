@@ -1,0 +1,20 @@
+# Релиз ФП = коммит Jenkins (qa-bt/BuildRelease) в ветку ФП qa-bt.
+# В ветке: qa/bt/<сервис>/release.yaml (версии) + qa/bt/release-plan.yaml (порядок выкатки по волнам).
+# Freight = снимок версий и порядка одного релиза.
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: qa-bt
+  namespace: qa-bt
+spec:
+  interval: 30s
+  subscriptions:
+    - git:
+        repoURL: https://github.com/PonamaryovMV/gitops-main.git
+        branch: qa-bt
+        commitSelectionStrategy: NewestFromBranch
+        includePaths:
+          - qa/bt
+        # только коммиты пайплайнов Jenkins (git user.name = jenkins)
+        expressionFilter: author contains 'jenkins'
+        discoveryLimit: 20

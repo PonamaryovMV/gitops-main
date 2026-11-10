@@ -1,0 +1,21 @@
+# Порядок выкатки: этот сервис выкатывается только после того, как сервисы из dependsOn
+# в этом окружении выкатились и готовы. Порядок считает Jenkins (BuildRelease), выполняет Kargo.
+deploy:
+  dependsOn: [api]
+
+global:
+  automated_system: qa
+  functional_system: bt
+  appname: mgmt
+  environment: uat
+
+main:
+  replicas: 1
+  container:
+    imageFunctionalSystem: at   # демо: у ФП qa/bt своих образов нет, берём образы qa/at
+  components:
+    - name: api
+      port: 8080
+      ingress: true      # http://qa-bt-mgmt-uat
+    - name: worker
+      port: 8080
