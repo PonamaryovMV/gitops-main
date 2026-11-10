@@ -1,0 +1,15 @@
+# План выкатки ФП qa/bt по волнам. Генерирует Jenkins из deploy.dependsOn в values окружений —
+# руками не править. Kargo выкатывает волны по очереди: следующая начинается, когда сервисы
+# предыдущей выкатились с этой версией и готовы.
+dev:
+  - { api: release-1-101 }   # волна 1
+  - { core: release-1-101, mgmt: release-1-101 }   # волна 2
+test:
+  - { api: release-1-101 }   # волна 1
+  - { core: release-1-101, mgmt: release-1-101 }   # волна 2
+uat:
+  - { api: release-1-101 }   # волна 1
+  - { core: release-1-101, mgmt: release-1-101 }   # волна 2
+prod:
+  - { api: release-1-101 }   # волна 1
+  - { core: release-1-101, mgmt: release-1-101 }   # волна 2
