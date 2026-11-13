@@ -2,15 +2,21 @@
 main:
   container:
     registry: ghcr.io/ponamaryovmv
-    version: release-1-101
+    version: release-2-102
 
 list_image_build:
-  - ghcr.io/ponamaryovmv/qa-at-mgmt-api:release-1-101
-  - ghcr.io/ponamaryovmv/qa-at-mgmt-worker:release-1-101
+  - ghcr.io/ponamaryovmv/qa-at-mgmt-api:release-2-102
+  - ghcr.io/ponamaryovmv/qa-at-mgmt-worker:release-2-102
 
 release:
-  task: TASK-1
-  build: 0
+  task: TASK-2
+  build: manual
   source:
     repo: https://github.com/PonamaryovMV/qa-bt-mgmt
-    commit: release-1-101
+    commit: release-2-102
+  digests:
+    qa-at-mgmt-api: "sha256:307f3a86b62c9adb3cf286acc2c8b26ff23a5c6a819fffd1469c0e7282ce60a8"
+    qa-at-mgmt-worker: "sha256:cf12b274553e786c8b575541a014f7a1731b840244b561ec295d7bfd3eba04c6"
+  checks:
+    sca: SKIPPED
+    sast: SKIPPED
